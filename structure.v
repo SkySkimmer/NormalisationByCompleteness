@@ -1,3 +1,6 @@
+(*
+In this file we define Heyting algebras using typeclasses for concise use
+*)
 Global Generalizable All Variables.
 
 Require Import Morphisms Setoid.

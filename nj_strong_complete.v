@@ -10,6 +10,9 @@ Notation "x .1" := (projT1 x) (at level 3).
 Notation "x .2" := (projT2 x) (at level 3).
 Notation "( x ; y )" := (existT _ x y).
 
+(*
+Redefine some library functions to avoid opacity.
+*)
 Definition in_app_or : forall {A : Type} (l m : list A) (a : A),
        In a (l ++ m) -> In a l \/ In a m
  := fun (A : Type) (l m : list A) (a : A) =>
@@ -43,34 +46,10 @@ conj (fun H : In a (l ++ l') => in_app_or l l' a H)
   (fun H : In a l \/ In a l' => in_or_app l l' a H).
 
 
-
+(*
+Definitions: formulas and judgements.
+*)
 Class EqDec (A : Type) := eqdec : forall x y : A, {x=y}+{~x=y}.
-
-Lemma app_insert_find : forall A : Type,
-forall P Q (x : A) P' Q', P++Q = P'++x::Q' ->
-(sig (fun P0 => P = P'++x::P0 /\ Q' = P0++Q ))+
-(sig (fun Q0 => P' = P++Q0 /\ Q=Q0++x::Q')).
-Proof.
-induction P;intros.
-simpl in H. right. exists P'. simpl. split; auto.
-destruct P'. simpl in H;simpl. left. exists P. injection H;intros;subst;auto.
-simpl in H. injection H;intros.
-apply IHP in H0. destruct H0 as [[P0 H0]|[Q0 H0]];destruct H0.
-left. exists P0. simpl. split;auto. subst. auto.
-right;exists Q0. subst;split;auto. 
-Defined.
-
-Lemma In_find : forall A {Hdec : EqDec A}, forall (x : A) l, In x l ->
-sigT (fun l1 => sigT (fun l2 => l = l1++x::l2)).
-Proof.
-induction l. intros [].
-intros. simpl in H.
-destruct (Hdec a x). exists nil;exists l. simpl. f_equal;assumption.
-assert (In x l). destruct H;auto. destruct n;auto.
-apply IHl in H0. exists (a::(projT1 H0)). exists (projT1 (projT2 H0)).
-simpl. f_equal.
-destruct H0 as [l1 [l2 H0]]. simpl;auto.
-Defined.
 
 Axiom atom : Type.
 Hypothesis atom_ne : exists a : atom, True.
@@ -166,6 +145,9 @@ with ne : context -> prop -> Prop :=
   | ne_bot : forall Gamma, ne Gamma pfalse -> forall A, ne Gamma A
 .
 
+(*
+Weakening lemmas.
+*)
 Lemma NJ_generalise : forall Gamma Sigma, (forall A, In A Gamma -> In A Sigma)
  -> forall A, Gamma |- A -> Sigma |- A.
 Proof.
@@ -311,6 +293,10 @@ apply H0;assumption.
 apply ne_bot. apply ne_str with Gamma;assumption.
 Defined.
 
+(*
+Soundness.
+*)
+
 Section NJ_sound_heyting.
 
 Context (T : Type) `{Heyt : Heyting T} (eval : atom -> T).
@@ -349,6 +335,10 @@ induction 1;simpl in *;intros.
 Defined.
 
 End NJ_sound_heyting.
+
+(*
+Completeness.
+*)
 
 Module NJ_complete.
 
@@ -797,14 +787,9 @@ Defined.
 Definition reduction : forall {G A}, G |- A -> G |- A
  := fun G A d => cf_NJ _ _ (remove_cuts d).
 
+
 (*
-Goal forall (G : context) (A B : prop) (d : (A::G) |- B) (d' : G |- A),
- exists k, k =
- NJ_sound_heyting Omega (fun a => Omega_extract (Atomic a)) 
- G B (NJ_exmp G A B (NJ_inmp G A B d) d').
-econstructor.
-simpl. unfold reflexivity.
-unfold transitivity. unfold sub_trans.
+Tests.
 *)
 
 Axiom A B : atom.
@@ -816,6 +801,7 @@ apply NJ_ax;left;reflexivity.
 Defined.
 
 Eval compute in (reduction test).
+(* x : A |- x : A  ==> x : A |- x : A *)
 
 Definition test' : NJ [Atomic A] (Atomic A).
 apply NJ_exmp with (Atomic A).
@@ -826,11 +812,21 @@ apply NJ_indisjl. apply NJ_exconjr with (Atomic A).
 apply NJ_ax;simpl;auto.
 apply NJ_inconj;apply NJ_ax;simpl;auto.
 apply NJ_inmp;apply NJ_ax;right;left;auto.
-apply NJ_inmp;apply NJ_ax;simpl;auto.
+apply NJ_inmp;apply NJ_ax;left;simpl;auto.
 apply NJ_ax;simpl;auto.
 Defined.
 
 Eval compute in (reduction test').
+(*
+
+ x : A |- (match (λz : A/\A. inl z.2) (x,x) with
+             | inl (y:A) => λz : A. y
+             | inr (y:A) => λz : A. z
+          ) x : A
+==>
+ x : A |- x : A
+
+*)
 
 Definition test0 : NJ [Atomic A; Atomic A] (Atomic A).
 apply NJ_exmp with (Atomic A).
@@ -841,6 +837,11 @@ apply NJ_ax. right;left;reflexivity.
 Defined.
 
 Eval compute in (reduction test0).
+(*
+ x : A, y : A |- (λz : A. y, y).1 x : A
+==>
+ x : A, y : A |- y : A
+*)
 
 Definition test1 : NJ [Atomic A ⊔ Atomic B] (Atomic A ⊔ Atomic B).
 apply NJ_ax;left;reflexivity.
@@ -850,6 +851,16 @@ Eval compute in (Omega_sound test1).
 
 Eval compute in (reduction test1).
 Eval compute in (reduction (reduction test1)).
+(*
+ x : A\/B |- x : A\/B
+==>
+ x : A\/B |- (match x with
+               | inl y => inl y
+               | inr z => inr z) : A\/B
+==>
+ something else
+*)
+
 
 Definition test2 : NJ [meet (Atomic A) (Atomic B)] (meet (Atomic A) (Atomic B)).
 Proof.
@@ -858,6 +869,13 @@ Defined.
 
 Eval compute in (reduction test2).
 Eval compute in (reduction (reduction test2)).
+(*
+ x : A/\B |- x : A/\B
+==>
+ x : A/\B |- (x.1,x.2) : A/\B
+==>
+ itself
+*)
 
 Definition test3 : NJ [imply (Atomic A) (Atomic B)]
  (imply (Atomic A) (Atomic B)).
@@ -867,6 +885,14 @@ Defined.
 
 Eval compute in (reduction test3).
 Eval compute in (reduction (reduction test3)).
+(*
+ x : A -> B |- x : A -> B
+==>
+ x : A -> B |- (λy : A. x y) : A -> B
+==>
+ itself
+*)
+
 
 End NJ_complete.
 
